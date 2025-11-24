@@ -1,59 +1,39 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
 import { Home, Calendar, User, XCircle } from 'lucide-react-native'; 
 import { TouchableOpacity, StyleSheet, View, Text } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
+import { NavigationContainer } from '@react-navigation/native';
 
 // Screens
 import HomeScreen from '../screens/HomeScreen';
 import PlannerScreen from '../screens/PlannerScreen';
 import MissedScreen from '../screens/MissedScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import AddScreen from '../screens/AddScreen';
+
+// --- Constants ---
+const LightColors = {
+  background: '#F2F2F7',
+  card: '#FFFFFF',
+  textPrimary: '#1F1F1F',
+  textSecondary: '#6B7280',
+  accentOrange: '#FF9500', 
+  progressRed: '#FF4500',  
+};
 
 const Tab = createBottomTabNavigator();
-
-const Colors = {
-  background: '#FFFFFF',
-  orangeAccent: '#FF8C00',
-  redAccent: '#FF3B30',
-  textPrimary: '#1C1C1C',
-  textSecondary: '#696969',
-  inputBackground: '#F7F7F7'
-};
-
-// Custom component for pill-shaped tab button
-const CustomPillTabButton = ({ children, focused, onPress, ...props }) => {
-  return (
-    <TouchableOpacity
-      {...props}
-      onPress={onPress}
-      style={[
-        styles.tabButton,
-        focused && { borderRadius: 30, paddingHorizontal: 18, backgroundColor: '#FF8C0040' } // slight background for active
-      ]}
-    >
-      {focused ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          {React.cloneElement(children[0], { color: undefined })} 
-          <Text style={styles.activeLabel}>
-            {props.accessibilityLabel?.replace('Tab, current screen', '')}
-          </Text>
-        </View>
-      ) : (
-        children
-      )}
-    </TouchableOpacity>
-  );
-};
+const Stack = createStackNavigator();
 
 // Gradient icon wrapper
-const GradientIcon = ({ IconComponent, size = 26 }) => (
+const GradientIcon = ({ IconComponent, size = 26, color }) => (
   <MaskedView
     maskElement={<IconComponent color="black" size={size} />}
   >
     <LinearGradient
-      colors={[Colors.orangeAccent, Colors.redAccent]}
+      colors={[LightColors.accentOrange, LightColors.progressRed]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={{ width: size, height: size }}
@@ -61,90 +41,94 @@ const GradientIcon = ({ IconComponent, size = 26 }) => (
   </MaskedView>
 );
 
-const AppNavigator = ({ user, onLogout }) => {
+const TabNavigator = ({ user, onLogout }) => {
   return (
     <Tab.Navigator
       initialRouteName="HomeTab"
       screenOptions={{
-        tabBarShowLabel: false,
+        tabBarShowLabel: true, // Show labels
         tabBarStyle: {
-          backgroundColor: Colors.background,
+          backgroundColor: LightColors.card,
+          paddingTop: 5, // Added padding to the top
+          // marginTop: 5,
           borderTopWidth: 0,
-          height: 90,
+          height: 70, // Adjusted height to accommodate labels
           paddingHorizontal: 10,
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
+          // Removed borderTopLeftRadius and borderTopRightRadius
           overflow: 'hidden',
         },
-        tabBarInactiveTintColor: Colors.textSecondary,
+        tabBarActiveTintColor: LightColors.accentOrange,
+        tabBarInactiveTintColor: LightColors.textSecondary,
+        tabBarLabelStyle: {
+            fontSize: 12,
+            fontWeight: '600',
+            marginBottom: 0, // Space between icon and label
+            
+        }
       }}
     >
       <Tab.Screen
         name="HomeTab"
-        children={() => <HomeScreen user={user} />}
+        children={(props) => <HomeScreen {...props} user={user} />}
         options={{
           tabBarLabel: 'Home',
           headerShown: false,
-          tabBarIcon: ({ focused }) =>
-            focused ? <GradientIcon IconComponent={Home} size={30} /> : <Home color={Colors.textSecondary} size={26} />,
-          tabBarButton: (props) => <CustomPillTabButton {...props} />,
+          tabBarIcon: ({ focused, color, size }) =>
+            focused ? <GradientIcon IconComponent={Home} size={24} color={color} /> : <Home color={color} size={24} />,
         }}
       />
 
       <Tab.Screen
         name="PlannerTab"
-        component={PlannerScreen}
+        children={(props) => <PlannerScreen {...props} user={user} />}
         options={{
           tabBarLabel: 'Planner',
           headerShown: false,
-          tabBarIcon: ({ focused }) =>
-            focused ? <GradientIcon IconComponent={Calendar} size={30} /> : <Calendar color={Colors.textSecondary} size={26} />,
-          tabBarButton: (props) => <CustomPillTabButton {...props} />,
+          tabBarIcon: ({ focused, color, size }) =>
+            focused ? <GradientIcon IconComponent={Calendar} size={24} color={color} /> : <Calendar color={color} size={24} />,
         }}
       />
 
       <Tab.Screen
         name="MissedTab"
-        component={MissedScreen}
+        children={(props) => <MissedScreen {...props} user={user} />}
         options={{
           tabBarLabel: 'Missed',
           headerShown: false,
-          tabBarIcon: ({ focused }) =>
-            focused ? <GradientIcon IconComponent={XCircle} size={30} /> : <XCircle color={Colors.textSecondary} size={26} />,
-          tabBarButton: (props) => <CustomPillTabButton {...props} />,
+          tabBarIcon: ({ focused, color, size }) =>
+            focused ? <GradientIcon IconComponent={XCircle} size={24} color={color} /> : <XCircle color={color} size={24} />,
         }}
       />
 
       <Tab.Screen
         name="ProfileTab"
-        children={() => <ProfileScreen onLogout={onLogout} />}
+        children={(props) => <ProfileScreen {...props} user={user} onLogout={onLogout} />}
         options={{
           tabBarLabel: 'Profile',
           headerShown: false,
-          tabBarIcon: ({ focused }) =>
-            focused ? <GradientIcon IconComponent={User} size={30} /> : <User color={Colors.textSecondary} size={26} />,
-          tabBarButton: (props) => <CustomPillTabButton {...props} />,
+          tabBarIcon: ({ focused, color, size }) =>
+            focused ? <GradientIcon IconComponent={User} size={24} color={color} /> : <User color={color} size={24} />,
         }}
       />
     </Tab.Navigator>
   );
+}
+
+const AppNavigator = ({ user, onLogout }) => {
+  return (
+      <Stack.Navigator>
+        <Stack.Screen name="Main" options={{ headerShown: false }}>
+          {() => <TabNavigator user={user} onLogout={onLogout} />}
+        </Stack.Screen>
+        <Stack.Screen name="Add" options={{ headerShown: false, presentation: 'modal' }}>
+          {(props) => <AddScreen {...props} user={user} />}
+        </Stack.Screen>
+      </Stack.Navigator>
+  );
 };
 
 const styles = StyleSheet.create({
-  tabButton: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginHorizontal: 8,
-    height: 50,
-    marginVertical: 10,
-  },
-  activeLabel: {
-    color: '#FFFFFF',
-    marginLeft: 8,
-    fontSize: 14,
-    fontWeight: '600',
-  }
+  // Removed CustomPillTabButton related styles as it's no longer used
 });
 
 export default AppNavigator;

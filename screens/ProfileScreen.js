@@ -1,64 +1,89 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Switch, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
+import { useSQLiteContext } from 'expo-sqlite';
+import { updateProfilePicture } from '../services/Database';
 // Importing Lucide icons for the profile card and dropdown
-import { User, Edit, ChevronDown, LogOut } from 'lucide-react-native'; 
+import { User, Edit, ChevronDown, LogOut } from 'lucide-react-native';
 
-// --- Constants (Copied for consistency) ---
-const DarkColors = {
-  background: '#121212', 
-  card: '#1F1F1F',      
-  textPrimary: '#FFFFFF', 
-  textSecondary: '#A9A9A9', 
-  accentOrange: '#FF9500', 
+// --- Color Constants ---
+const LightColors = {
+  background: '#F2F2F7',
+  card: '#FFFFFF',
+  textPrimary: '#1F1F1F',
+  textSecondary: '#6B7280',
+  accentOrange: '#FF9500',
   progressRed: '#FF4500',  // Used for the Logout button
-  tabActive: '#333333',    
 };
 
-const ProfileScreen = ({ user = { name: 'Reogie Akero', role: 'Student' } }) => {
+const ProfileScreen = ({ user, onLogout }) => {
+    const db = useSQLiteContext();
     // State for the alarm switch
-    const [isAlarmEnabled, setIsAlarmEnabled] = React.useState(true);
+    const [isAlarmEnabled, setIsAlarmEnabled] = useState(true);
     const toggleAlarmSwitch = () => setIsAlarmEnabled(previousState => !previousState);
+    const [profilePicture, setProfilePicture] = useState(user?.profile_picture);
+
+    useEffect(() => {
+        setProfilePicture(user?.profile_picture);
+    }, [user]);
+
+    const pickImage = async () => {
+        let result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 1,
+        });
+
+        if (!result.canceled) {
+            setProfilePicture(result.assets[0].uri);
+            try {
+                await updateProfilePicture(db, user.id, result.assets[0].uri);
+            } catch (error) {
+                console.error("Failed to update profile picture:", error);
+            }
+        }
+    };
 
     // Mock data for the dropdown (Time selection)
     const mockAlarmTime = '5 Minutes'; // Example value for the dropdown display
 
-    // Function to handle logout (Placeholder)
-    const handleLogout = () => {
-        console.log('User logged out!');
-        // In a real app, you would dispatch a logout action here.
-    };
-
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
             <View style={styles.header}>
                 <Text style={styles.titleText}>Profile</Text>
             </View>
 
             {/* Profile Card */}
             <View style={styles.profileCard}>
-                <View style={styles.avatarContainer}>
-                    <User size={50} color={DarkColors.textPrimary} />
-                </View>
-                
+                <TouchableOpacity onPress={pickImage}>
+                    <View style={styles.avatarContainer}>
+                        {profilePicture ? (
+                            <Image source={{ uri: profilePicture }} style={styles.avatar} />
+                        ) : (
+                            <User size={50} color={LightColors.textPrimary} />
+                        )}
+                    </View>
+                </TouchableOpacity>
+
                 <Text style={styles.userNameText}>{user.name}</Text>
-                <Text style={styles.userRoleText}>{user.role}</Text>
-                
+
                 <TouchableOpacity style={styles.editButton}>
-                    <Edit size={20} color={DarkColors.textPrimary} />
+                    <Edit size={20} color={LightColors.textPrimary} />
                 </TouchableOpacity>
             </View>
 
             {/* --- Alarm Setting Section --- */}
             <View style={styles.settingsSection}>
-                
+
                 {/* Alarm Switch Row */}
                 <View style={styles.settingRow}>
                     <Text style={styles.settingLabel}>Alarm</Text>
                     <Switch
-                        trackColor={{ false: DarkColors.textSecondary, true: DarkColors.accentOrange }}
-                        thumbColor={DarkColors.textPrimary}
-                        ios_backgroundColor={DarkColors.textSecondary}
+                        trackColor={{ false: LightColors.textSecondary, true: LightColors.accentOrange }}
+                        thumbColor={isAlarmEnabled ? LightColors.card : LightColors.textSecondary}
+                        ios_backgroundColor={LightColors.textSecondary}
                         onValueChange={toggleAlarmSwitch}
                         value={isAlarmEnabled}
                     />
@@ -71,24 +96,24 @@ const ProfileScreen = ({ user = { name: 'Reogie Akero', role: 'Student' } }) => 
 
                 {/* Time Setting Input (Placeholder) */}
                 <Text style={styles.settingLabel}>Time</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                     style={[styles.settingInputContainer, styles.dropdownInput, { opacity: isAlarmEnabled ? 1 : 0.5 }]}
                     disabled={!isAlarmEnabled}
                 >
                     <Text style={styles.dropdownText}>{mockAlarmTime}</Text>
-                    <ChevronDown size={20} color={DarkColors.textPrimary} />
+                    <ChevronDown size={20} color={LightColors.textPrimary} />
                 </TouchableOpacity>
             </View>
 
 
             {/* Logout Button */}
             <View style={styles.logoutWrapper}>
-                <TouchableOpacity 
+                <TouchableOpacity
                     style={styles.logoutButton}
-                    onPress={handleLogout}
+                    onPress={onLogout}
                 >
                     {/* LogOut icon is optional, but adds context */}
-                    <LogOut size={20} color={DarkColors.textPrimary} style={{ marginRight: 8 }} />
+                    <LogOut size={20} color={LightColors.card} style={{ marginRight: 8 }} />
                     <Text style={styles.logoutButtonText}>Logout</Text>
                 </TouchableOpacity>
             </View>
@@ -103,25 +128,26 @@ const ProfileScreen = ({ user = { name: 'Reogie Akero', role: 'Student' } }) => 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: DarkColors.background,
+        backgroundColor: LightColors.background,
         paddingHorizontal: 15,
     },
-    
+
     // --- Header ---
     header: {
-        justifyContent: 'flex-start',
+        flexDirection: 'row',
+        justifyContent: 'center',
         paddingTop: 10,
         marginBottom: 20,
     },
     titleText: {
-        color: DarkColors.textPrimary,
-        fontSize: 32,
+        color: LightColors.textPrimary,
+        fontSize: 25,
         fontWeight: 'bold',
     },
 
     // --- Profile Card ---
     profileCard: {
-        backgroundColor: DarkColors.card,
+        backgroundColor: LightColors.card,
         borderRadius: 15,
         padding: 20,
         alignItems: 'center',
@@ -132,19 +158,24 @@ const styles = StyleSheet.create({
         width: 80,
         height: 80,
         borderRadius: 40,
-        backgroundColor: DarkColors.background, // Use background color for avatar circle
+        backgroundColor: LightColors.background, // Use background color for avatar circle
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 10,
     },
+    avatar: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+    },
     userNameText: {
-        color: DarkColors.textPrimary,
+        color: LightColors.textPrimary,
         fontSize: 22,
         fontWeight: 'bold',
         marginTop: 5,
     },
     userRoleText: {
-        color: DarkColors.textSecondary,
+        color: LightColors.textSecondary,
         fontSize: 14,
         marginBottom: 10,
     },
@@ -153,9 +184,9 @@ const styles = StyleSheet.create({
         top: 15,
         right: 15,
         // The edit button in the image is small and subtle
-        padding: 5, 
+        padding: 5,
     },
-    
+
     // --- Settings Section ---
     settingsSection: {
         flex: 1, // Allows the settings section to push the logout button to the bottom
@@ -167,24 +198,24 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     settingLabel: {
-        color: DarkColors.textPrimary,
+        color: LightColors.textPrimary,
         fontSize: 16,
     },
-    
+
     // Placeholder Input Styles
     settingInputContainer: {
-        backgroundColor: DarkColors.card,
+        backgroundColor: LightColors.card,
         borderRadius: 8,
         padding: 15,
         marginBottom: 20,
         borderWidth: 1,
-        borderColor: DarkColors.card, // Ensure dark card is visible
+        borderColor: '#E5E7EB', // A light border for the card
     },
     inputLabel: {
-        color: DarkColors.textSecondary,
+        color: LightColors.textSecondary,
         fontSize: 14,
     },
-    
+
     // Dropdown Specific Styles
     dropdownInput: {
         flexDirection: 'row',
@@ -192,17 +223,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     dropdownText: {
-        color: DarkColors.textPrimary,
+        color: LightColors.textPrimary,
         fontSize: 16,
     },
 
     // --- Logout Button ---
     logoutWrapper: {
         // Ensures button stays at the bottom above the nav (if nav is outside SafeAreaView)
-        marginBottom: 20, 
+        // marginBottom: 20, // Removed to reduce space
     },
     logoutButton: {
-        backgroundColor: DarkColors.progressRed, // Bright red for a warning/action button
+        backgroundColor: LightColors.progressRed, // Bright red for a warning/action button
         borderRadius: 10,
         padding: 15,
         alignItems: 'center',
@@ -210,7 +241,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     logoutButtonText: {
-        color: DarkColors.textPrimary,
+        color: LightColors.card,
         fontSize: 18,
         fontWeight: 'bold',
     },

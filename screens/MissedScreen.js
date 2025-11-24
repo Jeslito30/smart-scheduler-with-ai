@@ -1,98 +1,128 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import TaskCard from '../components/TaskCard'; 
+import { TaskCard } from '../components/TaskCard';
+import { useSQLiteContext } from 'expo-sqlite';
+import { getMissedTasks, updateTaskStatus } from '../services/Database';
+import { useIsFocused } from '@react-navigation/native';
 
-// --- Constants (Copied from HomeScreen.js for consistency) ---
-const DarkColors = {
-  background: '#121212', 
-  card: '#1F1F1F',      
-  textPrimary: '#FFFFFF', 
-  textSecondary: '#A9A9A9', 
-  accentOrange: '#FF9500', 
+// --- Color Constants ---
+const LightColors = {
+  background: '#F8F9FA', // Very light grey
+  card: '#FFFFFF',
+  textPrimary: '#212529', // Dark grey/black
+  textSecondary: '#6C757D', // Grey
+  accentOrange: '#FF9500',
   progressRed: '#FF4500',  // Used for the 'Missed' indicator
-  tabActive: '#333333',    
 };
 
-// --- Mock Data (Based on the Missed Screen screenshot) ---
-const missedTasks = [
-    // Note: The screenshot uses the same details repeatedly, so we'll simulate that for the list structure.
-    // In a real app, these would be separate tasks that have passed their due time.
-    { 
-        id: 1, 
-        tag: 'Design', 
-        title: 'About the Design', 
-        details: 'Team sync-up to finalize UI/UX flows and review the latest mockups.', 
-        time: '09:00 AM - 10:30 AM', 
-        status: 'Missed', // Custom status field to handle the red indicator
-        location: 'Anywhere' 
-    },
-    { 
-        id: 2, 
-        tag: 'Design', 
-        title: 'About the Design', 
-        details: 'Team sync-up to finalize UI/UX flows and review the latest mockups.', 
-        time: '09:00 AM - 10:30 AM', 
-        status: 'Missed', 
-        location: 'Anywhere' 
-    },
-    { 
-        id: 3, 
-        tag: 'Design', 
-        title: 'About the Design', 
-        details: 'Team sync-up to finalize UI/UX flows and review the latest mockups.', 
-        time: '09:00 AM - 10:30 AM', 
-        status: 'Missed', 
-        location: 'Anywhere' 
-    },
-    { 
-        id: 4, 
-        tag: 'Design', 
-        title: 'About the Design', 
-        details: 'Team sync-up to finalize UI/UX flows and review the latest mockups.', 
-        time: '09:00 AM - 10:30 AM', 
-        status: 'Missed', 
-        location: 'Anywhere' 
-    },
-    { 
-        id: 5, 
-        tag: 'Design', 
-        title: 'About the Design', 
-        details: 'Team sync-up to finalize UI/UX flows and review the latest mockups.', 
-        time: '09:00 AM - 10:30 AM', 
-        status: 'Missed', 
-        location: 'Anywhere' 
-    },
-];
+// --- Utility Function to convert 12-hour time to 24-hour time ---
+const convertTo24HourFormat = (time12h) => {
+  const [time, modifier] = time12h.split(' ');
+  let [hours, minutes] = time.split(':');
 
-const MissedScreen = () => {
+  if (hours === '12') {
+    hours = '00';
+  }
+
+  if (modifier === 'PM') {
+    hours = parseInt(hours, 10) + 12;
+  }
+  return `${hours}:${minutes}`;
+};
+
+// --- Utility Function to get Current Date in YYYY-MM-DD format ---
+const getCurrentDate = () => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const pad = (num) => (num < 10 ? '0' + num : num);
+  return `${year}-${pad(month)}-${pad(day)}`;
+};
+
+const MissedScreen = ({ user }) => {
+    const db = useSQLiteContext();
+    const [missedTasks, setMissedTasks] = useState([]);
+    const isFocused = useIsFocused();
+    const [activeFilter, setActiveFilter] = useState('Today');
+
+    const fetchMissed = useCallback(async () => {
+        if (user?.id) {
+            try {
+                const fetchedPotentialMissedTasks = await getMissedTasks(db, user.id);
+                const now = new Date();
+                const today = getCurrentDate();
+
+                let trulyMissedTasks = fetchedPotentialMissedTasks.filter(task => {
+                    // Task is of type 'Task' and status is 'pending' - already handled by SQL query
+                    const time24 = convertTo24HourFormat(task.time);
+                    const deadline = new Date(`${task.date}T${time24}:00`);
+                    return deadline < now;
+                });
+
+                if (activeFilter === 'Today') {
+                    trulyMissedTasks = trulyMissedTasks.filter(task => task.date === today);
+                }
+                setMissedTasks(trulyMissedTasks);
+            } catch (error) {
+                console.error("Failed to fetch missed tasks:", error);
+            }
+        }
+    }, [db, user?.id, activeFilter]);
+
+    useEffect(() => {
+        if (isFocused) {
+            fetchMissed();
+        }
+    }, [isFocused, fetchMissed]);
+
+    const handleDone = async (taskId) => {
+        try {
+          await updateTaskStatus(db, taskId, 'done');
+          fetchMissed(); // Refreshes the list to remove the completed task
+        } catch (error) {
+          console.error("Failed to update task status from MissedScreen:", error);
+        }
+    };
+
     return (
-        <SafeAreaView style={styles.container}>
-            <ScrollView 
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-            >
-                {/* Header Section */}
-                <View style={styles.header}>
-                    <Text style={styles.titleText}>Missed</Text>
-                </View>
+        <SafeAreaView style={styles.container} edges={['top']}>
+            <View style={styles.header}>
+                <Text style={styles.titleText}>Missed</Text>
+            </View>
 
-                {/* Task List */}
-                <View>
-                    {missedTasks.map(task => (
-                        <TaskCard 
-                            key={task.id} 
-                            {...task} 
-                            // Prop to indicate missed status for specific TaskCard styling if needed
-                            isMissed={true} 
-                            // The location tag is red in the image, but we'll stick to DarkColors.progressRed for consistency
-                            tagColor={DarkColors.progressRed} 
-                            tagTextColor={DarkColors.textPrimary}
-                        />
-                    ))}
-                </View>
-                
-            </ScrollView>
+            {/* Filter Tabs */}
+            <View style={styles.tabsContainer}>
+                <TouchableOpacity
+                    style={[styles.tabButton, activeFilter === 'Today' && styles.tabActive]}
+                    onPress={() => setActiveFilter('Today')}>
+                    <Text style={[styles.tabText, activeFilter === 'Today' && styles.tabTextActive]}>Today</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.tabButton, activeFilter === 'All' && styles.tabActive]}
+                    onPress={() => setActiveFilter('All')}>
+                    <Text style={[styles.tabText, activeFilter === 'All' && styles.tabTextActive]}>All</Text>
+                </TouchableOpacity>
+            </View>
+
+            {/* Task List */}
+            <FlatList
+                data={missedTasks}
+                renderItem={({ item }) => {
+                    const time24 = convertTo24HourFormat(item.time);
+                    const deadline = `${item.date}T${time24}:00`;
+                    return <TaskCard {...item} deadline={deadline} onDone={handleDone} />;
+                }}
+                keyExtractor={item => item.id.toString()}
+                contentContainerStyle={styles.taskList}
+                showsVerticalScrollIndicator={false}
+                ListEmptyComponent={() => (
+                    <View style={styles.emptyTasks}>
+                        <Text style={styles.emptyText}>No missed tasks.</Text>
+                    </View>
+                )}
+            />
         </SafeAreaView>
     );
 };
@@ -101,23 +131,60 @@ const MissedScreen = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: DarkColors.background,
+        backgroundColor: LightColors.background,
+        paddingHorizontal: 15, // Apply horizontal padding to the whole screen
     },
-    scrollContent: {
-        paddingHorizontal: 15,
-        paddingBottom: 20, 
-    },
-    
+
     // --- Header Styles ---
     header: {
-        justifyContent: 'flex-start',
-        paddingTop: 10,
-        marginBottom: 20, // Add space below the title
+        flexDirection: 'row',
+        justifyContent: 'center',
+        paddingTop: 10, // For space from the top edge of safe area
+        marginBottom: 20,
     },
     titleText: {
-        color: DarkColors.textPrimary,
-        fontSize: 32, // Large font size matching the screenshot
+        color: LightColors.textPrimary,
+        fontSize: 25,
         fontWeight: 'bold',
+    },
+    tabsContainer: {
+        flexDirection: 'row',
+        justifyContent: 'flex-start',
+        marginBottom: 15,
+        paddingVertical: 5,
+        gap: 20,
+    },
+    tabButton: {
+        paddingVertical: 8,
+        paddingHorizontal: 15,
+    },
+    tabActive: {
+        borderBottomWidth: 2,
+        borderBottomColor: LightColors.accentOrange,
+    },
+    tabText: {
+        color: LightColors.textSecondary,
+        fontSize: 16,
+        fontWeight: '500',
+    },
+    tabTextActive: {
+        color: LightColors.textPrimary,
+        fontWeight: 'bold',
+    },
+    taskList: {
+        flexGrow: 1, // Allows the container to grow to fill space
+        paddingBottom: 0, // Add padding to the bottom to avoid being cut off by the tab navigator
+    },
+    emptyTasks: {
+        paddingVertical: 50,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    emptyText: {
+        color: LightColors.textPrimary,
+        fontSize: 18,
+        fontWeight: '600',
+        marginBottom: 5,
     },
 });
 

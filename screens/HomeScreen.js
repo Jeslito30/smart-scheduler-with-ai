@@ -1,70 +1,186 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import TaskCard from '../components/TaskCard'; 
-// Importing specific Lucide icons for the header
-import { Bell, Plus } from 'lucide-react-native'; 
+import { TaskCard } from '../components/TaskCard';
+import { useSQLiteContext } from 'expo-sqlite';
+import { getAllTasks, getTasksByDate, getUpcomingTasks, getCompletedTasks, updateTaskStatus } from '../services/Database';
+import { useIsFocused } from '@react-navigation/native';
+// Importing specific Lucide icons
+import { Bell, Sparkles, Filter } from 'lucide-react-native';
+import EditScreen from './EditScreen';
 
 // --- Constants ---
-const DarkColors = {
-  background: '#121212', 
-  card: '#1F1F1F',      
-  textPrimary: '#FFFFFF', 
-  textSecondary: '#A9A9A9', 
-  accentOrange: '#FF9500', 
-  progressRed: '#FF4500',  
-  tabActive: '#333333',    
+const LightColors = {
+  background: '#F2F2F7',
+  card: '#FFFFFF',
+  textPrimary: '#1F1F1F',
+  textSecondary: '#6B7280',
+  accentOrange: '#FF9500',
+  progressRed: '#FF4500',
+  tabInactive: '#E5E5E5',
 };
 
-// --- Utility Function to get Current Date in DD-MM-YYYY format ---
+// --- Utility Function to get Current Date in YYYY-MM-DD format ---
 const getCurrentDate = () => {
   const date = new Date();
-  // Get year, month (0-indexed, so add 1), and day
   const year = date.getFullYear();
-  const month = date.getMonth() + 1; 
+  const month = date.getMonth() + 1;
   const day = date.getDate();
-  
-  // Pad month/day with leading zero if needed (e.g., 3 -> 03)
   const pad = (num) => (num < 10 ? '0' + num : num);
-  
-  // Format as DD-MM-YYYY (or similar based on mock design)
-  return `${pad(day)}-${pad(month)}-${year}`;
+  return `${year}-${pad(month)}-${pad(day)}`;
 };
 
-// --- Mock Data (Unchanged) ---
-const tasks = [
-    { id: 1, tag: 'Meeting', title: 'Onboarding Call', details: 'Meeting with client scheduled for 2:30 PM, review project updates and next steps.', time: '07:00 AM - 8:30 AM', remaining: '23m', location: 'Anywhere' },
-    { id: 2, tag: 'Design', title: 'About the Design', details: 'Team sync-up to finalize UI/UX flows and review the latest mockups.', time: '09:00 AM - 10:30 AM', remaining: '1hr 3m', location: 'Anywhere' },
-    { id: 3, tag: 'Class', title: 'Advanced Algorithms', details: 'Lecture on dynamic programming. Don\'t forget to submit Assignment 3.', time: '10:00 AM - 11:30 AM', remaining: '2hr 3m', location: 'Room 205' },
-    { id: 4, tag: 'Meeting', title: 'Client Feedback', details: 'Review latest mockups with client.', time: '12:00 PM - 1:00 PM', remaining: '3hr 3m', location: 'Online' },
-    { id: 5, tag: 'Design', title: 'Prototyping Session', details: 'Work on Figma prototypes for the new feature.', time: '1:00 PM - 3:00 PM', remaining: '5hr 3m', location: 'Studio' },
-    { id: 6, tag: 'Class', title: 'Database Systems', details: 'Study for the mid-term exam on SQL.', time: '3:00 PM - 4:30 PM', remaining: '7hr 3m', location: 'Home' },
-    { id: 7, tag: 'Meeting', title: 'Daily Standup', details: 'Brief check-in with the development team.', time: '4:30 PM - 4:45 PM', remaining: '8hr 3m', location: 'Anywhere' },
-];
+// --- Utility Function to get Current Day Name (e.g., Wednesday) ---
+const getDayName = () => {
+  const date = new Date();
+  const options = { weekday: 'long' };
+  return date.toLocaleDateString('en-US', options);
+};
 
-const HomeScreen = ({ user = { name: 'Reo Aki' }, navigation }) => {
-  const userName = user.name;
-  const initial = userName.split(' ').map(n => n[0]).join('');
+// --- Utility Function to get formatted date (e.g., October 26, 2023) ---
+const getFormattedDate = () => {
+  const date = new Date();
+  const options = { year: 'numeric', month: 'long', day: 'numeric' };
+  return date.toLocaleDateString('en-US', options);
+};
 
-  const [activeTab, setActiveTab] = React.useState('Upcoming');
-  
-  const currentDate = getCurrentDate();
+// --- Utility Function to convert 12-hour time to 24-hour time ---
+const convertTo24HourFormat = (time12h) => {
+  const [time, modifier] = time12h.split(' ');
+  let [hours, minutes] = time.split(':');
 
-  const handleAddPress = () => {
-    navigation?.navigate('Add'); 
+  if (hours === '12') {
+    hours = '00';
   }
 
+  if (modifier === 'PM') {
+    hours = parseInt(hours, 10) + 12;
+  }
+  return `${hours}:${minutes}`;
+};
+
+const HomeScreen = ({ user, navigation }) => {
+  const userName = user.name;
+  const initial = userName.split(' ').map(n => n[0]).join('');
+  const db = useSQLiteContext();
+  const isFocused = useIsFocused();
+  const profilePicture = user?.profile_picture;
+
+
+  const [activeTab, setActiveTab] = useState('Upcoming');
+  const [activeFilter, setActiveFilter] = useState('All'); // 'All', 'Task', 'Schedule'
+  const [tasks, setTasks] = useState([]);
+  const [isFilterVisible, setIsFilterVisible] = useState(false);
+  const [allTasks, setAllTasks] = useState([]);
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
+
+  const fetchTasks = useCallback(async () => {
+    if (user?.id) {
+      try {
+        const today = getCurrentDate();
+        let fetchedTasks;
+        
+        // Base query parts
+        let typeFilterClause = "";
+        if (activeFilter === 'Task') {
+          typeFilterClause = " AND type = 'Task'";
+        } else if (activeFilter === 'Schedule') {
+          typeFilterClause = " AND type != 'Task'";
+        }
+
+        switch (activeTab) {
+          case 'All':
+            fetchedTasks = await db.getAllAsync(`SELECT * FROM tasks WHERE userId = ?${typeFilterClause}`, [user.id]);
+            break;
+          case 'Today':
+            fetchedTasks = await db.getAllAsync(`SELECT * FROM tasks WHERE userId = ? AND date = ?${typeFilterClause}`, [user.id, today]);
+            break;
+          case 'Upcoming':
+            fetchedTasks = await db.getAllAsync(`SELECT * FROM tasks WHERE userId = ? AND date > ? AND status != 'done'${typeFilterClause}`, [user.id, today]);
+            break;
+          case 'Completed':
+            fetchedTasks = await db.getAllAsync(`SELECT * FROM tasks WHERE userId = ? AND status = 'done'${typeFilterClause}`, [user.id]);
+            break;
+          default:
+            fetchedTasks = [];
+        }
+        setTasks(fetchedTasks);
+        if(activeTab === 'All') {
+          setAllTasks(fetchedTasks);
+        } else {
+          const all = await getAllTasks(db, user.id);
+          setAllTasks(all);
+        }
+      } catch (error) {
+        console.error("Failed to fetch tasks:", error);
+      }
+    }
+  }, [db, user?.id, activeTab, activeFilter]);
+
+  useEffect(() => {
+    if (isFocused) {
+      fetchTasks();
+    }
+  }, [isFocused, fetchTasks]);
+
+  const handleDone = async (taskId) => {
+    try {
+      await updateTaskStatus(db, taskId, 'done');
+      fetchTasks();
+    } catch (error) {
+      console.error("Failed to update task status:", error);
+    }
+  };
+
+  const handleEdit = (task) => {
+    setSelectedTask(task);
+    setIsEditModalVisible(true);
+  };
+
+  const handleCloseEditModal = () => {
+    setIsEditModalVisible(false);
+    setSelectedTask(null);
+    fetchTasks();
+  };
+
+  const dayName = getDayName();
+  const formattedDate = getFormattedDate();
+
+  // Renamed function to handle notification press
+  const handleNotificationPress = () => {
+    console.log('Notification button pressed!');
+  }
+
+  // --- Function to handle AI button press ---
+  const handleAiButtonPress = () => {
+    console.log('AI button pressed!');
+  };
+
+  // --- Function to toggle filter visibility ---
+  const toggleFilterVisibility = () => {
+    setIsFilterVisible(!isFilterVisible);
+  };
+
+  const completedTasksCount = allTasks.filter(task => task.status === 'done').length;
+  const donePercentage = allTasks.length > 0 ? Math.round((completedTasksCount / allTasks.length) * 100) : 0;
+
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <View style={styles.content}>
         <View style={styles.header}>
           <View style={styles.userInfo}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{initial}</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
+            <View style={styles.avatarContainer}>
+              {profilePicture ? (
+                <Image source={{ uri: profilePicture }} style={styles.avatar} />
+              ) : (
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{initial}</Text>
+                </View>
+              )}
             </View>
+          </TouchableOpacity>
             <View>
               <Text style={styles.greetingText}>Hey,</Text>
               <Text style={styles.userNameText}>{userName}</Text>
@@ -72,8 +188,8 @@ const HomeScreen = ({ user = { name: 'Reo Aki' }, navigation }) => {
           </View>
           
           <View style={styles.actionButtons}>
-              <TouchableOpacity style={styles.addButtonPolished} onPress={handleAddPress}>
-                  <Plus size={30} color={DarkColors.textPrimary} />
+              <TouchableOpacity style={styles.headerButton} onPress={handleNotificationPress}>
+                  <Bell size={24} color={LightColors.card} />
               </TouchableOpacity>
           </View>
         </View>
@@ -86,35 +202,67 @@ const HomeScreen = ({ user = { name: 'Reo Aki' }, navigation }) => {
           </View>
 
           <View style={styles.reportBody}>
-            {/* --- Dynamic Date Display --- */}
-            <Text style={styles.reportDateLarge}>{currentDate}</Text>
+            {/* --- Date and Day Name Display --- */}
+            <View>
+              <Text style={styles.reportDateLarge}>{dayName}</Text>
+              <Text style={styles.reportDateSmall}>{formattedDate}</Text>
+            </View>
             
             <View style={styles.statsContainer}>
                 <View style={styles.statRow}>
-                    <Text style={styles.statLabel}>Schedule</Text>
-                    <Text style={styles.statValue}>7</Text>
+                    <Text style={styles.statLabel}>Tasks</Text>
+                    <Text style={styles.statValue}>{allTasks.length}</Text>
                 </View>
                 <View style={styles.statRow}>
                     <Text style={styles.statLabel}>Done</Text>
-                    <Text style={[styles.statValue, { color: DarkColors.accentOrange }]}>23%</Text>
+                    <Text style={[styles.statValue, { color: LightColors.accentOrange }]}>{donePercentage}%</Text>
                 </View>
             </View>
           </View>
           
           <View style={styles.reportFooter}>
               <Text style={styles.quote}>
-                "Focus on being productive instead of busy." 
+                "Focus on being productive instead of busy."
                 <Text style={styles.quoteAuthor}> - Tim Ferriss</Text>
               </Text>
           </View>
           
         </View>
 
+        {/* List Header with Filter Toggle */}
+        <View style={styles.listHeaderContainer}>
+          <Text style={styles.listHeaderTitle}>
+            {activeFilter === 'Schedule'
+              ? 'My Schedules'
+              : activeFilter === 'All'
+              ? 'Tasks and Schedules'
+              : 'My Tasks'}
+          </Text>
+          <TouchableOpacity onPress={toggleFilterVisibility} style={styles.filterIcon}>
+            <Filter size={24} color={isFilterVisible ? LightColors.accentOrange : LightColors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Toggleable Filter Tabs for Task/Schedule */}
+        {isFilterVisible && (
+          <View style={styles.filterTabsContainer}>
+            {['All', 'Task', 'Schedule'].map((filter) => (
+              <TouchableOpacity
+                key={filter}
+                style={[styles.filterTabButton, activeFilter === filter && styles.filterTabActive]}
+                onPress={() => setActiveFilter(filter)}
+              >
+                <Text style={[styles.filterTabText, activeFilter === filter && styles.filterTabTextActive]}>{filter}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
         {/* Navigation Tabs */}
         <View style={styles.tabsContainer}>
-          {['All', 'Upcoming', 'Project', 'Complete'].map((tab) => (
-            <TouchableOpacity 
-              key={tab} 
+          {['All', 'Today', 'Upcoming', 'Completed'].map((tab) => (
+            <TouchableOpacity
+              key={tab}
               style={[styles.tabButton, activeTab === tab && styles.tabActive]}
               onPress={() => setActiveTab(tab)}
             >
@@ -124,13 +272,41 @@ const HomeScreen = ({ user = { name: 'Reo Aki' }, navigation }) => {
         </View>
 
         {/* Task List */}
-        <View>
-          {tasks.map(task => (
-            <TaskCard key={task.id} {...task} />
-          ))}
-        </View>
-        
-      </ScrollView>
+        <FlatList
+          data={tasks}
+          renderItem={({ item }) => {
+            const time24 = convertTo24HourFormat(item.time);
+            const deadline = `${item.date}T${time24}:00`;
+            return <TaskCard {...item} deadline={deadline} onDone={handleDone} onEdit={handleEdit} />;
+          }}
+          keyExtractor={item => item.id.toString()}
+          contentContainerStyle={styles.taskList}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={() => (
+            <View style={styles.emptyTasks}>
+              <Text style={styles.emptyText}>No tasks to display.</Text>
+            </View>
+          )}
+        />
+      </View>
+      <Modal
+        visible={isEditModalVisible}
+        animationType="slide"
+        onRequestClose={handleCloseEditModal}
+      >
+        {selectedTask && (
+          <EditScreen
+            task={selectedTask}
+            onClose={handleCloseEditModal}
+          />
+        )}
+      </Modal>
+
+      {/* AI Floating Action Button */}
+      <TouchableOpacity style={styles.aiButton} onPress={handleAiButtonPress}>
+        <Sparkles size={30} color={LightColors.card} />
+      </TouchableOpacity>
+
     </SafeAreaView>
   );
 };
@@ -139,13 +315,12 @@ const HomeScreen = ({ user = { name: 'Reo Aki' }, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: DarkColors.background,
+    backgroundColor: LightColors.background,
   },
-  scrollContent: {
-      paddingHorizontal: 15,
-      paddingBottom: 20, 
+  content: {
+    flex: 1,
+    paddingHorizontal: 15,
   },
-  
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -160,23 +335,23 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: DarkColors.accentOrange, 
+    backgroundColor: LightColors.accentOrange,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
   },
   avatarText: {
-    color: DarkColors.textPrimary,
+    color: LightColors.card,
     fontWeight: 'bold',
     fontSize: 16,
   },
   greetingText: {
-    color: DarkColors.textSecondary,
+    color: LightColors.textSecondary,
     fontSize: 14,
     lineHeight: 16,
   },
   userNameText: {
-    color: DarkColors.textPrimary,
+    color: LightColors.textPrimary,
     fontWeight: 'bold',
     fontSize: 18,
     lineHeight: 20,
@@ -188,24 +363,22 @@ const styles = StyleSheet.create({
   bellIcon: {
       marginRight: 15,
   },
-  // REMOVED old 'addButton' style
-  // NEW: Polished Add Button Style (Matches PlannerScreen.js)
-  addButtonPolished: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: DarkColors.accentOrange, 
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: LightColors.accentOrange,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: DarkColors.accentOrange,
+    shadowColor: LightColors.accentOrange,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.5,
     shadowRadius: 5,
-    elevation: 5, 
+    elevation: 5,
   },
-  
+
   reportCard: {
-    backgroundColor: DarkColors.card,
+    backgroundColor: LightColors.card,
     borderRadius: 15,
     padding: 18,
     marginTop: 20,
@@ -213,13 +386,13 @@ const styles = StyleSheet.create({
   },
   reportHeader: {
     flexDirection: 'row',
-    justifyContent: 'flex-start', 
+    justifyContent: 'flex-start',
     marginBottom: 5,
   },
   reportTitle: {
-    color: DarkColors.textPrimary,
+    color: LightColors.textPrimary,
     fontSize: 18,
-    fontWeight: 'bold', 
+    fontWeight: 'bold',
   },
   reportBody: {
     flexDirection: 'row',
@@ -227,10 +400,15 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 10,
   },
+  reportDateSmall: {
+    color: LightColors.textSecondary,
+    fontSize: 16,
+  },
   reportDateLarge: {
-    color: DarkColors.textPrimary,
+    color: LightColors.textPrimary,
     fontSize: 32,
     fontWeight: 'bold',
+    marginBottom: 2,
   },
   statsContainer: {
     alignItems: 'flex-end',
@@ -239,21 +417,21 @@ const styles = StyleSheet.create({
   statRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: 120, 
+    width: 120,
     marginBottom: 4,
   },
   statLabel: {
-    color: DarkColors.textSecondary,
+    color: LightColors.textSecondary,
     fontSize: 16,
   },
   statValue: {
-    color: DarkColors.textPrimary,
+    color: LightColors.textPrimary,
     fontSize: 18,
     fontWeight: 'bold',
   },
   reportFooter: {},
   quote: {
-    color: DarkColors.textSecondary,
+    color: LightColors.textSecondary,
     fontSize: 14,
     marginTop: 15,
     lineHeight: 18,
@@ -262,10 +440,54 @@ const styles = StyleSheet.create({
       fontSize: 14,
   },
 
+  listHeaderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingHorizontal: 5,
+  },
+  listHeaderTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: LightColors.textPrimary,
+  },
+  filterIcon: {
+    padding: 5,
+  },
+
+  filterTabsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    backgroundColor: LightColors.background,
+    paddingBottom: 5,
+    borderBottomWidth: 2,
+    borderBottomColor: LightColors.tabInactive,
+  },
+  filterTabButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginRight: 10,
+  },
+  filterTabActive: {
+    borderBottomWidth: 3,
+    borderBottomColor: LightColors.accentOrange,
+  },
+  filterTabText: {
+    color: LightColors.textSecondary,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  filterTabTextActive: {
+    color: LightColors.textPrimary,
+    fontWeight: 'bold',
+  },
+
+
   tabsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: DarkColors.background,
+    backgroundColor: LightColors.background,
     marginBottom: 10,
     paddingVertical: 5,
   },
@@ -275,16 +497,46 @@ const styles = StyleSheet.create({
   },
   tabActive: {
       borderBottomWidth: 2,
-      borderBottomColor: DarkColors.accentOrange,
+      borderBottomColor: LightColors.accentOrange,
   },
   tabText: {
-    color: DarkColors.textSecondary,
+    color: LightColors.textSecondary,
     fontSize: 16,
     fontWeight: '500',
   },
   tabTextActive: {
-      color: DarkColors.textPrimary,
+      color: LightColors.textPrimary,
       fontWeight: 'bold',
+  },
+  taskList: {
+
+  },
+  emptyTasks: {
+    paddingVertical: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    color: LightColors.textPrimary,
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 5,
+  },
+  aiButton: {
+    position: 'absolute',
+    right: 25,
+    bottom: 25,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: LightColors.accentOrange,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: LightColors.accentOrange,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 8,
   },
 });
 
