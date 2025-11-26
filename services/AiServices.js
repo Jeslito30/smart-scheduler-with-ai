@@ -1,9 +1,9 @@
 import { GoogleGenAI } from "@google/genai";
 
 // ⚠️ Security Warning: Do not store keys in plain text in production.
-const API_KEY = "AIzaSyA8dUQ3N9lEfjJFSDzHGUCSyETN53aoXqQ"; 
+const API_KEY = "API_KEY_HERE"; 
 
-// Initialize the client with your API key
+// Initialize the client with the new SDK
 const ai = new GoogleGenAI({ apiKey: API_KEY });
 
 export const getScheduleRecommendation = async (userTasks, userPrompt) => {
@@ -14,7 +14,7 @@ export const getScheduleRecommendation = async (userTasks, userPrompt) => {
 
     // 1. Construct the Prompt
     const prompt = `
-      You are a smart scheduling assistant.
+      You are a smart scheduling assistant for a React Native app.
       
       **Context:**
       - Current Date & Time: ${dateString}, ${timeString}
@@ -22,40 +22,48 @@ export const getScheduleRecommendation = async (userTasks, userPrompt) => {
       
       **User Request:** "${userPrompt}"
       
-      **Goal:** Analyze the schedule and suggest the best conflict-free time for the request.
+      **Goal:** Analyze the user's existing schedule and find a conflict-free time slot to fulfill their request.
       
       **Output Requirement:**
-      Return ONLY a valid JSON object. No markdown, no backticks.
-      Structure:
+      Return ONLY a valid JSON object. Do not include markdown formatting (no \`\`\`json).
+      
+      The JSON must strictly match this schema:
       {
-        "title": "Task Title",
-        "description": "Brief description",
-        "date": "YYYY-MM-DD",
-        "time": "HH:MM AM/PM",
-        "reason": "Why this time works"
+        "title": "String (Task Title)",
+        "description": "String (Brief description)",
+        "date": "String (YYYY-MM-DD)",
+        "time": "String (HH:MM AM/PM)",
+        "reason": "String (Short explanation)"
       }
     `;
 
-    // 2. Configure the Model & Request
+    // 2. Generate Content using the new SDK and active model (Gemini 2.5 Flash)
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash-exp", // or "gemini-1.5-flash"
+      model: "gemini-2.5-flash", 
       contents: prompt,
       config: {
-        responseMimeType: "application/json", 
+        responseMimeType: "application/json",
       }
     });
 
-    // 3. Parse and Return
-    // FIX: response.text is a property, NOT a function
+    // 3. Clean and Parse Response
+    // Note: In the new SDK, 'text' is a property, not a function.
     let text = response.text; 
-    
-    // Clean up potential markdown formatting if it exists
-    if (text) {
-        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+    console.log("Raw AI Response:", text);
+
+    // Remove any markdown if present
+    if (text && typeof text === 'string') {
+        text = text.replace(/```json/g, "").replace(/```/g, "").trim();
     }
+
+    const recommendation = JSON.parse(text);
     
-    console.log("AI Response:", text);
-    return JSON.parse(text);
+    if (!recommendation.title || !recommendation.date || !recommendation.time) {
+        throw new Error("Incomplete recommendation data received.");
+    }
+
+    return recommendation;
 
   } catch (error) {
     console.error("AI Service Error:", error);

@@ -22,7 +22,10 @@ export const registerForPushNotificationsAsync = async () => {
   }
 
   if (!Device.isDevice) {
-    // alert('Must use physical device for Push Notifications');
+    Alert.alert(
+      'Notifications not supported',
+      'Push notifications are not supported on emulators. Please use a physical device for this feature.'
+    );
     return null;
   }
 
