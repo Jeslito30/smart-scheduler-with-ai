@@ -7,30 +7,30 @@ import { addTask } from '../services/Database';
 import { ChevronLeft, Check, Calendar, Clock, Briefcase, BookOpen, Repeat, Users, CheckSquare, MapPin } from 'lucide-react-native'; 
 
 // --- Constants (Copied for consistency) ---
-const DarkColors = {
-  background: '#121212', 
-  card: '#1F1F1F',      
-  textPrimary: '#FFFFFF', 
-  textSecondary: '#A9A9A9', 
+const LightColors = {
+  background: '#F2F2F7',
+  card: '#FFFFFF',
+  textPrimary: '#1F1F1F',
+  textSecondary: '#6B7280',
   accentOrange: '#FF9500', // Primary accent color
-  progressRed: '#FF4500',  
-  tabActive: '#333333',    
-  purpleAccent: '#5F50A9', // A darker purple/indigo for the main button background
+  purpleAccent: '#007AFF', // System blue for primary actions
   greenAccent: '#4CAF50',
   blueAccent: '#00BFFF',
   yellowAccent: '#FFC72C',
+  inputBackground: '#FFFFFF',
+  inputBorder: '#C7C7CC',
 };
 
 // Category definitions based on type
 const scheduleCategories = [
-    { name: 'Class', icon: BookOpen, color: DarkColors.accentOrange },
-    { name: 'Routine', icon: Repeat, color: DarkColors.blueAccent },
-    { name: 'Meeting', icon: Users, color: DarkColors.greenAccent },
-    { name: 'Work', icon: Briefcase, color: DarkColors.purpleAccent },
+    { name: 'Class', icon: BookOpen, color: LightColors.accentOrange },
+    { name: 'Routine', icon: Repeat, color: LightColors.blueAccent },
+    { name: 'Meeting', icon: Users, color: LightColors.greenAccent },
+    { name: 'Work', icon: Briefcase, color: LightColors.purpleAccent },
 ];
 
 const taskCategories = [
-    { name: 'Task', icon: CheckSquare, color: DarkColors.yellowAccent },
+    { name: 'Task', icon: CheckSquare, color: LightColors.yellowAccent },
 ];
 
 const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -122,13 +122,13 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
         return (
             <TouchableOpacity 
                 style={[
-                    styles.categoryButton, 
-                    isActive && { backgroundColor: item.color }
+                    styles.categoryButton,
+                    isActive && { backgroundColor: item.color, borderWidth: 0 }
                 ]}
                 onPress={() => setSelectedCategory(item.name)}
             >
-                <item.icon size={24} color={isActive ? DarkColors.textPrimary : item.color} />
-                <Text style={[styles.categoryText, { color: isActive ? DarkColors.textPrimary : DarkColors.textSecondary }]}>{item.name}</Text>
+                <item.icon size={24} color={isActive ? LightColors.card : item.color} />
+                <Text style={[styles.categoryText, { color: isActive ? LightColors.card : LightColors.textPrimary }]}>{item.name}</Text>
             </TouchableOpacity>
         );
     };
@@ -226,7 +226,7 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
             {/* Header Section - This part stays fixed */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation?.goBack()}>
-                    <ChevronLeft size={28} color={DarkColors.textPrimary} />
+                    <ChevronLeft size={28} color={LightColors.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Add</Text>
             </View>
@@ -242,18 +242,16 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                     style={[styles.segment, activeType === 'Task' && styles.segmentActive]}
                     onPress={() => handleTypeChange('Task')}
                 >
-                    <Check size={20} color={activeType === 'Task' ? DarkColors.textPrimary : DarkColors.textSecondary} />
+                    <Check size={20} color={activeType === 'Task' ? LightColors.purpleAccent : LightColors.textSecondary} />
                     <Text style={[styles.segmentText, activeType === 'Task' && styles.segmentTextActive]}>Task</Text>
-                    {activeType === 'Task' && <View style={styles.segmentUnderline} />}
                 </TouchableOpacity>
                 
                 <TouchableOpacity 
                     style={[styles.segment, activeType === 'Schedule' && styles.segmentActive]}
                     onPress={() => handleTypeChange('Schedule')}
                 >
-                    <Calendar size={20} color={activeType === 'Schedule' ? DarkColors.textPrimary : DarkColors.textSecondary} />
+                    <Calendar size={20} color={activeType === 'Schedule' ? LightColors.purpleAccent : LightColors.textSecondary} />
                     <Text style={[styles.segmentText, activeType === 'Schedule' && styles.segmentTextActive]}>Schedule</Text>
-                    {activeType === 'Schedule' && <View style={styles.segmentUnderline} />}
                 </TouchableOpacity>
             </View>
 
@@ -271,7 +269,7 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                     <TextInput
                         style={styles.textInput}
                         placeholder={activeType === 'Schedule' ? 'Enter schedule title' : 'Enter task title'}
-                        placeholderTextColor={DarkColors.textSecondary}
+                        placeholderTextColor={LightColors.textSecondary}
                         value={taskTitle}
                         onChangeText={setTaskTitle}
                     />
@@ -289,7 +287,7 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                     <TextInput
                         style={styles.textArea}
                         placeholder={activeType === 'Task' ? 'Describe your task' : 'Describe your schedule'}
-                        placeholderTextColor={DarkColors.textSecondary}
+                        placeholderTextColor={LightColors.textSecondary}
                         value={description}
                         onChangeText={setDescription}
                         multiline
@@ -340,7 +338,7 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                         <View style={styles.dateTimeInputGroup}>
                             <Text style={styles.label}>{activeType === 'Schedule' ? 'Time' : 'Due Time'}</Text>
                             <TouchableOpacity onPress={() => setShowTimePicker(true)} style={styles.dateTimeWrapper}>
-                                <Clock size={20} color={DarkColors.textSecondary} style={styles.iconInInput} />
+                                <Clock size={20} color={LightColors.textSecondary} style={styles.iconInInput} />
                                 <Text style={[styles.textInput, styles.dateTimeText]}>{dueTime}</Text>
                             </TouchableOpacity>
                         </View>
@@ -349,7 +347,7 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                             <View style={styles.dateTimeInputGroup}>
                                 <Text style={styles.label}>Due Date</Text>
                                 <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.dateTimeWrapper}>
-                                    <Calendar size={20} color={DarkColors.textSecondary} style={styles.iconInInput} />
+                                    <Calendar size={20} color={LightColors.textSecondary} style={styles.iconInInput} />
                                     <Text style={[styles.textInput, styles.dateTimeText]}>{dueDate}</Text>
                                 </TouchableOpacity>
                             </View>
@@ -358,14 +356,14 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                                 <View style={styles.dateTimeInputGroup}>
                                     <Text style={styles.label}>Start Date</Text>
                                     <TouchableOpacity onPress={() => setShowStartDatePicker(true)} style={styles.dateTimeWrapper}>
-                                        <Calendar size={20} color={DarkColors.textSecondary} style={styles.iconInInput} />
+                                        <Calendar size={20} color={LightColors.textSecondary} style={styles.iconInInput} />
                                         <Text style={[styles.textInput, styles.dateTimeText]}>{startDateString}</Text>
                                     </TouchableOpacity>
                                 </View>
                                 <View style={styles.dateTimeInputGroup}>
                                     <Text style={styles.label}>End Date</Text>
                                     <TouchableOpacity onPress={() => setShowEndDatePicker(true)} style={styles.dateTimeWrapper}>
-                                        <Calendar size={20} color={DarkColors.textSecondary} style={styles.iconInInput} />
+                                        <Calendar size={20} color={LightColors.textSecondary} style={styles.iconInInput} />
                                         <Text style={[styles.textInput, styles.dateTimeText]}>{endDateString}</Text>
                                     </TouchableOpacity>
                                 </View>
@@ -380,8 +378,8 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                             mode="date"
                             display="default"
                             onChange={handleDateChange}
-                            textColor={DarkColors.textPrimary}
-                            style={{ backgroundColor: DarkColors.card }}
+                            textColor={LightColors.textPrimary}
+                            style={{ backgroundColor: LightColors.card }}
                         />
                     )}
 
@@ -392,8 +390,8 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                             mode="date"
                             display="default"
                             onChange={handleStartDateChange}
-                            textColor={DarkColors.textPrimary}
-                            style={{ backgroundColor: DarkColors.card }}
+                            textColor={LightColors.textPrimary}
+                            style={{ backgroundColor: LightColors.card }}
                         />
                     )}
 
@@ -404,8 +402,8 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                             mode="date"
                             display="default"
                             onChange={handleEndDateChange}
-                            textColor={DarkColors.textPrimary}
-                            style={{ backgroundColor: DarkColors.card }}
+                            textColor={LightColors.textPrimary}
+                            style={{ backgroundColor: LightColors.card }}
                         />
                     )}
 
@@ -416,8 +414,8 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                             mode="time"
                             display="default"
                             onChange={handleTimeChange}
-                            textColor={DarkColors.textPrimary}
-                            style={{ backgroundColor: DarkColors.card }}
+                            textColor={LightColors.textPrimary}
+                            style={{ backgroundColor: LightColors.card }}
                         />
                     )}
 
@@ -428,12 +426,12 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                         <TextInput
                             style={[styles.textInput, styles.locationInput]}
                             placeholder="Type or select from map"
-                            placeholderTextColor={DarkColors.textSecondary}
+                            placeholderTextColor={LightColors.textSecondary}
                             value={location}
                             onChangeText={setLocation}
                         />
                         <TouchableOpacity onPress={handleOpenMap} style={styles.mapIcon}>
-                            <MapPin size={22} color={DarkColors.accentOrange} />
+                            <MapPin size={22} color={LightColors.accentOrange} />
                         </TouchableOpacity>
                     </View>
                     
@@ -455,7 +453,7 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: DarkColors.background,
+        backgroundColor: LightColors.background,
         paddingHorizontal: 20,
     },
     
@@ -467,13 +465,13 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     headerTitle: {
-        color: DarkColors.textPrimary,
+        color: LightColors.textPrimary,
         fontSize: 30,
         fontWeight: 'bold',
         marginLeft: 20,
     },
     subtitle: {
-        color: DarkColors.textSecondary,
+        color: LightColors.textSecondary,
         fontSize: 14,
         marginBottom: 20,
         lineHeight: 20,
@@ -482,11 +480,9 @@ const styles = StyleSheet.create({
     // --- Segmented Control (Task/Schedule) ---
     segmentedControl: {
         flexDirection: 'row',
-        backgroundColor: DarkColors.card,
+        backgroundColor: LightColors.card,
         borderRadius: 10,
         marginBottom: 25,
-        borderWidth: 1,
-        borderColor: DarkColors.purpleAccent,
     },
     segment: {
         flex: 1,
@@ -498,48 +494,44 @@ const styles = StyleSheet.create({
         position: 'relative',
     },
     segmentActive: {
-        // No background change, only bottom underline
+        backgroundColor: LightColors.purpleAccent + '20', // Light blue tint
+        borderRadius: 10,
     },
     segmentText: {
-        color: DarkColors.textSecondary,
+        color: LightColors.textSecondary,
         fontSize: 16,
         fontWeight: '600',
         marginLeft: 8,
     },
     segmentTextActive: {
-        color: DarkColors.textPrimary,
-    },
-    segmentUnderline: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: 3,
-        backgroundColor: DarkColors.accentOrange,
-        borderBottomLeftRadius: 10,
-        borderBottomRightRadius: 10,
+        color: LightColors.purpleAccent,
+        fontWeight: 'bold',
     },
 
     // --- Form Elements ---
     label: {
-        color: DarkColors.textPrimary,
+        color: LightColors.textPrimary,
         fontSize: 16,
         fontWeight: '600',
         marginBottom: 8,
     },
     textInput: {
-        backgroundColor: DarkColors.card,
-        color: DarkColors.textPrimary,
+        backgroundColor: LightColors.inputBackground,
+        color: LightColors.textPrimary,
         borderRadius: 8,
+        borderWidth: 1,
+        borderColor: LightColors.inputBorder,
         paddingHorizontal: 15,
         paddingVertical: 15,
         fontSize: 16,
         marginBottom: 20,
     },
     textArea: {
-        backgroundColor: DarkColors.card,
-        color: DarkColors.textPrimary,
+        backgroundColor: LightColors.inputBackground,
+        color: LightColors.textPrimary,
         borderRadius: 8,
+        borderWidth: 1,
+        borderColor: LightColors.inputBorder,
         paddingHorizontal: 15,
         paddingVertical: 15,
         fontSize: 16,
@@ -556,11 +548,13 @@ const styles = StyleSheet.create({
     },
     categoryButton: {
         width: '23%', 
-        backgroundColor: DarkColors.card,
+        backgroundColor: LightColors.card,
         borderRadius: 10,
         paddingVertical: 15,
         alignItems: 'center',
         justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: LightColors.inputBorder,
     },
     categoryText: {
         fontSize: 12,
@@ -571,8 +565,8 @@ const styles = StyleSheet.create({
     // --- Repeat Section ---
     repeatFrequencyContainer: {
         flexDirection: 'row',
-        justifyContent: 'space-around',
-        backgroundColor: DarkColors.card,
+        justifyContent: 'space-between',
+        backgroundColor: LightColors.card,
         borderRadius: 10,
         padding: 5,
         marginBottom: 10,
@@ -583,20 +577,20 @@ const styles = StyleSheet.create({
         borderRadius: 8,
     },
     frequencyButtonSelected: {
-        backgroundColor: DarkColors.purpleAccent,
+        backgroundColor: LightColors.purpleAccent,
     },
     frequencyButtonText: {
-        color: DarkColors.textSecondary,
+        color: LightColors.purpleAccent,
         fontWeight: 'bold',
     },
     frequencyButtonTextSelected: {
-        color: DarkColors.textPrimary,
+        color: LightColors.card,
     },
     repeatContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: DarkColors.card,
+        backgroundColor: LightColors.card,
         borderRadius: 10,
         padding: 10,
         marginBottom: 20,
@@ -610,15 +604,15 @@ const styles = StyleSheet.create({
         backgroundColor: 'transparent',
     },
     dayButtonSelected: {
-        backgroundColor: DarkColors.purpleAccent,
+        backgroundColor: LightColors.purpleAccent,
     },
     dayText: {
-        color: DarkColors.textSecondary,
+        color: LightColors.purpleAccent,
         fontWeight: 'bold',
         fontSize: 14,
     },
     dayTextSelected: {
-        color: DarkColors.textPrimary,
+        color: LightColors.card,
     },
     everydayButton: {
         paddingHorizontal: 12,
@@ -628,7 +622,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     everydayText: {
-        color: DarkColors.textSecondary,
+        color: LightColors.purpleAccent,
         fontWeight: 'bold',
         fontSize: 14,
     },
@@ -689,19 +683,19 @@ const styles = StyleSheet.create({
 
     // --- Submit Button ---
     addButton: {
-        backgroundColor: DarkColors.purpleAccent, // Use a distinct color for the final action button
+        backgroundColor: LightColors.purpleAccent, // Use a distinct color for the final action button
         borderRadius: 10,
         padding: 18,
         alignItems: 'center',
         marginVertical: 30,
-        shadowColor: DarkColors.purpleAccent,
+        shadowColor: LightColors.purpleAccent,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.5,
         shadowRadius: 8,
         elevation: 10,
     },
     addButtonText: {
-        color: DarkColors.textPrimary,
+        color: LightColors.card,
         fontSize: 18,
         fontWeight: 'bold',
     },
