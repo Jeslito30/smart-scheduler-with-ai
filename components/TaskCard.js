@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, TouchableOpacity } from 'react-native';
-import { MapPin, Clock, Calendar, Check, Edit, X } from 'lucide-react-native';
+import { MapPin, Clock, Calendar, Check, Edit, X, Trash2 } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 
 const getCategoryTagColor = (type) => {
@@ -14,7 +14,7 @@ const getCategoryTagColor = (type) => {
   }
 };
 
-export const TaskCard = ({ id, type, title, description, time, location, date, deadline, status, onDone, onEdit }) => {
+export const TaskCard = ({ id, type, title, description, time, location, date, deadline, status, onDone, onEdit, onDelete }) => {
   const { colors } = useTheme();
   const [remainingTime, setRemainingTime] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -27,9 +27,7 @@ export const TaskCard = ({ id, type, title, description, time, location, date, d
       const diff = deadlineDate - now;
 
       if (diff <= 0) {
-        // If deadline passed, set state and stop the timer
         setIsPastDeadline(true);
-        // Only 'Task' types can be "Missed"
         if (type === 'Task') {
           setRemainingTime('Missed');
         }
@@ -83,6 +81,13 @@ export const TaskCard = ({ id, type, title, description, time, location, date, d
     setIsEditing(false);
   };
 
+  const handleDeletePress = () => {
+    if (onDelete) {
+        onDelete(id);
+    }
+    setIsEditing(false);
+  };
+
   const handleCancelPress = () => {
     setIsEditing(false);
   };
@@ -102,7 +107,11 @@ export const TaskCard = ({ id, type, title, description, time, location, date, d
               <Edit size={24} color={colors.card} />
               <Text style={styles.actionButtonText}>Edit</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.cancelRed }]} onPress={handleCancelPress} activeOpacity={0.7}>
+            <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.cancelRed }]} onPress={handleDeletePress} activeOpacity={0.7}>
+              <Trash2 size={24} color={colors.card} />
+              <Text style={styles.actionButtonText}>Delete</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.textSecondary }]} onPress={handleCancelPress} activeOpacity={0.7}>
               <X size={24} color={colors.card} />
               <Text style={styles.actionButtonText}>Cancel</Text>
             </TouchableOpacity>
@@ -161,13 +170,13 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
-    overflow: 'hidden', // Ensures buttons don't bleed out of rounded corners
+    overflow: 'hidden', 
   },
   cardEditing: {
     padding: 0,
   },
   cardContent: {
-    padding: 14, // Apply padding to the content wrapper instead of the main card
+    padding: 14,
     justifyContent: 'center',
   },
   topRow: {
@@ -176,15 +185,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  // New styles for the category tag
   tagContainer: {
     paddingHorizontal: 12,
     paddingVertical: 4,
-    borderRadius: 15, // Creates the oblong shape
-    alignSelf: 'flex-start', // Ensures the badge only takes up as much space as its content
+    borderRadius: 15,
+    alignSelf: 'flex-start',
   },
   tagText: {
-    fontSize: 14, // Same size as description
+    fontSize: 14,
     fontWeight: 'bold',
   },
   locationContainer: {
@@ -200,7 +208,7 @@ const styles = StyleSheet.create({
   titleText: {
     fontSize: 22,
     fontWeight: 'bold',
-    marginBottom: 8, // Add space below the title
+    marginBottom: 8,
   },
   detailsText: {
     fontSize: 14,
@@ -238,21 +246,20 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 12,
   },
-  // Styles for the action buttons
   actionsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'stretch',
-    height: 150, // Set a fixed height for the editing state
+    height: 150,
   },
   actionButton: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 14,
+    padding: 10,
   },
   actionButtonText: {
-    fontSize: 18,
+    fontSize: 14, 
     fontWeight: 'bold',
     marginTop: 8,
   },

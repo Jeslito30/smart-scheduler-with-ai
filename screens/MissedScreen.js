@@ -3,10 +3,11 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal } from 'react
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TaskCard } from '../components/TaskCard';
 import { useSQLiteContext } from 'expo-sqlite';
-import { getMissedTasks, updateTaskStatus } from '../services/Database';
+import { getMissedTasks, updateTaskStatus, deleteTask } from '../services/Database';
 import { useIsFocused } from '@react-navigation/native';
 import EditScreen from './EditScreen';
 import { useTheme } from '../context/ThemeContext';
+import CustomAlert from '../components/CustomAlert';
 
 // --- Utility Function to convert 12-hour time to 24-hour time ---
 const convertTo24HourFormat = (time12h) => {
@@ -42,6 +43,23 @@ const MissedScreen = ({ user }) => {
     // State for Edit Modal
     const [isEditModalVisible, setIsEditModalVisible] = useState(false);
     const [selectedTask, setSelectedTask] = useState(null);
+
+    // --- Alert Config ---
+    const [alertConfig, setAlertConfig] = useState({
+      visible: false,
+      title: '',
+      message: '',
+      type: 'info',
+      buttons: []
+    });
+
+    const showAlert = (title, message, type = 'info', buttons = []) => {
+      setAlertConfig({ visible: true, title, message, type, buttons });
+    };
+
+    const closeAlert = () => {
+      setAlertConfig(prev => ({ ...prev, visible: false }));
+    };
 
     const fetchMissed = useCallback(async () => {
         if (user?.id) {
@@ -82,6 +100,34 @@ const MissedScreen = ({ user }) => {
         }
     };
 
+    const executeDeleteTask = async (taskId) => {
+        try {
+            await deleteTask(db, taskId);
+            fetchMissed();
+        } catch (error) {
+            console.error("Failed to delete task:", error);
+            showAlert('Error', 'Could not delete the task.', 'error');
+        }
+    };
+
+    const handleDelete = (taskId) => {
+        showAlert(
+            'Delete Task',
+            'Are you sure you want to delete this task? This action cannot be undone.',
+            'info',
+            [
+                { text: 'Cancel', style: 'cancel', onPress: closeAlert },
+                { 
+                    text: 'Delete', 
+                    onPress: () => {
+                        closeAlert();
+                        executeDeleteTask(taskId);
+                    } 
+                }
+            ]
+        );
+    };
+
     const handleEdit = (task) => {
         setSelectedTask(task);
         setIsEditModalVisible(true);
@@ -120,7 +166,7 @@ const MissedScreen = ({ user }) => {
                 renderItem={({ item }) => {
                     const time24 = convertTo24HourFormat(item.time);
                     const deadline = `${item.date}T${time24}:00`;
-                    return <TaskCard {...item} deadline={deadline} onDone={handleDone} onEdit={handleEdit} />;
+                    return <TaskCard {...item} deadline={deadline} onDone={handleDone} onEdit={handleEdit} onDelete={handleDelete} />;
                 }}
                 keyExtractor={item => item.id.toString()}
                 contentContainerStyle={styles.taskList}
@@ -144,6 +190,15 @@ const MissedScreen = ({ user }) => {
                 />
                 )}
             </Modal>
+
+            <CustomAlert 
+                visible={alertConfig.visible}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                type={alertConfig.type}
+                buttons={alertConfig.buttons}
+                onClose={closeAlert}
+            />
         </SafeAreaView>
     );
 };

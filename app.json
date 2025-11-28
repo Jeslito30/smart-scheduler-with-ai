@@ -1,12 +1,16 @@
 {
   "expo": {
-    "name": "smart",
+    "name": "Schedify",
     "slug": "smart",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/app-logo.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "notification": {
+      "icon": "./assets/app-logo.png",
+      "color": "#FF9500"
+    },
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -17,7 +21,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/app-logo.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
@@ -33,6 +37,7 @@
       "eas": {
         "projectId": "95728e03-68a7-4d3f-b19e-4efcd9e08935"
       }
-    }
+    },
+    "owner": "jeslito30"
   }
 }

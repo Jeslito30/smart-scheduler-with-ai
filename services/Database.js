@@ -1,7 +1,8 @@
+import * as SQLite from 'expo-sqlite';
+
 export const initDB = async (db) => {
   try {
     await db.execAsync(`
-      
       -- Create the users table if it doesn't exist
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,53 +29,32 @@ export const initDB = async (db) => {
     `);
     console.log("Database tables ensured/created.");
 
-    // Migration: Add location column if it doesn't exist
+    // Migration: Add columns if they doesn't exist
     const tableInfo = await db.getAllAsync("PRAGMA table_info(tasks);");
-    const hasLocationColumn = tableInfo.some(info => info.name === 'location');
-    const hasRepeatFrequencyColumn = tableInfo.some(info => info.name === 'repeat_frequency');
-    const hasRepeatDaysColumn = tableInfo.some(info => info.name === 'repeat_days');
-    const hasStartDateColumn = tableInfo.some(info => info.name === 'start_date');
-    const hasEndDateColumn = tableInfo.some(info => info.name === 'end_date');
-    // NEW MIGRATIONS
-    const hasNotificationId = tableInfo.some(info => info.name === 'notification_id');
-    const hasReminderMinutes = tableInfo.some(info => info.name === 'reminder_minutes');
+    
+    const columnsToCheck = [
+      { name: 'location', type: 'TEXT' },
+      { name: 'repeat_frequency', type: "TEXT DEFAULT 'none'" },
+      { name: 'repeat_days', type: 'TEXT' },
+      { name: 'start_date', type: 'TEXT' },
+      { name: 'end_date', type: 'TEXT' },
+      { name: 'notification_id', type: 'TEXT' },
+      { name: 'reminder_minutes', type: 'INTEGER DEFAULT 5' }
+    ];
 
+    for (const col of columnsToCheck) {
+      const hasColumn = tableInfo.some(info => info.name === col.name);
+      if (!hasColumn) {
+        await db.execAsync(`ALTER TABLE tasks ADD COLUMN ${col.name} ${col.type};`);
+        console.log(`Added '${col.name}' column to 'tasks' table.`);
+      }
+    }
 
-
-    if (!hasLocationColumn) {
-      await db.execAsync("ALTER TABLE tasks ADD COLUMN location TEXT;");
-      console.log("Added 'location' column to 'tasks' table.");
-    }
-    if (!hasRepeatFrequencyColumn) {
-      await db.execAsync("ALTER TABLE tasks ADD COLUMN repeat_frequency TEXT DEFAULT 'none';");
-      console.log("Added 'repeat_frequency' column to 'tasks' table.");
-    }
-    if (!hasRepeatDaysColumn) {
-      await db.execAsync("ALTER TABLE tasks ADD COLUMN repeat_days TEXT;");
-      console.log("Added 'repeat_days' column to 'tasks' table.");
-    }
-    if (!hasStartDateColumn) {
-      await db.execAsync("ALTER TABLE tasks ADD COLUMN start_date TEXT;");
-      console.log("Added 'start_date' column to 'tasks' table.");
-    }
-    if (!hasEndDateColumn) {
-      await db.execAsync("ALTER TABLE tasks ADD COLUMN end_date TEXT;");
-      console.log("Added 'end_date' column to 'tasks' table.");
-    }
-    if (!hasNotificationId) {
-      await db.execAsync("ALTER TABLE tasks ADD COLUMN notification_id TEXT;");
-      console.log("Added 'notification_id' column to 'tasks' table.");
-    }
-    if (!hasReminderMinutes) {
-      await db.execAsync("ALTER TABLE tasks ADD COLUMN reminder_minutes INTEGER DEFAULT 5;");
-      console.log("Added 'reminder_minutes' column to 'tasks' table.");
-    }
   } catch (error) {
     console.error("Failed to initialize database:", error);
     throw error;
   }
 };
-
 
 export const insertUser = async (db, name, email, password) => {
   try {
@@ -104,15 +84,14 @@ export const getUser = async (db, email, password) => {
     console.error("Database get user error:", error);
     throw error;
   }
-  };
+};
 
 export const addTask = async (db, task) => {
-  // UPDATED: Accept notification_id and reminder_minutes
   try {
     const { 
       title, description, date, time, type, location, userId, 
       repeat_frequency, repeat_days, start_date, end_date, 
-      notification_id, reminder_minutes // <--- New fields
+      notification_id, reminder_minutes 
     } = task;
     
     await db.runAsync(
@@ -121,6 +100,16 @@ export const addTask = async (db, task) => {
     );
   } catch (error) {
     console.error("Database add task error:", error);
+    throw error;
+  }
+};
+
+// --- NEW DELETE FUNCTION ---
+export const deleteTask = async (db, taskId) => {
+  try {
+    await db.runAsync('DELETE FROM tasks WHERE id = ?', [taskId]);
+  } catch (error) {
+    console.error("Database delete task error:", error);
     throw error;
   }
 };
@@ -231,12 +220,11 @@ export const updateProfilePicture = async (db, userId, profilePicture) => {
 };
 
 export const updateTask = async (db, task) => {
-  // UPDATED: Update new columns
   try {
     const { 
       id, title, description, date, time, type, location, 
       repeat_frequency, repeat_days, start_date, end_date,
-      notification_id, reminder_minutes // <--- New fields
+      notification_id, reminder_minutes
     } = task;
     
     await db.runAsync(
@@ -295,8 +283,8 @@ export const getRepeatingTasksInDateRange = async (db, userId, rangeStartDate, r
             if (task.repeat_frequency === 'daily') {
               shouldAdd = true;
             } else if (task.repeat_frequency === 'weekly' && task.repeat_days) {
-              const repeatDaysArray = JSON.parse(task.repeat_days); // Assuming repeat_days is stored as a JSON string array like '["Mon", "Wed"]'
-              const dayOfWeek = currentDate.toLocaleString('en-US', { weekday: 'short' }); // e.g., 'Mon'
+              const repeatDaysArray = JSON.parse(task.repeat_days);
+              const dayOfWeek = currentDate.toLocaleString('en-US', { weekday: 'short' });
               if (repeatDaysArray.includes(dayOfWeek)) {
                 shouldAdd = true;
               }
@@ -307,7 +295,6 @@ export const getRepeatingTasksInDateRange = async (db, userId, rangeStartDate, r
                 ...task,
                 // Override the date with the generated occurrence date
                 date: formatDate(currentDate),
-                // Ensure time is preserved, as it's not generated
                 time: originalTime,
                 // Assign a unique ID for rendering, combining original task ID and occurrence date
                 id: `${task.id}-${formatDate(currentDate)}`,
@@ -318,7 +305,6 @@ export const getRepeatingTasksInDateRange = async (db, userId, rangeStartDate, r
         }
       }
     }
-    console.log('Generated Tasks:', generatedTasks);
     return generatedTasks;
   } catch (error) {
     console.error("Database get repeating tasks in date range error:", error);

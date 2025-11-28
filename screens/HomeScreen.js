@@ -3,15 +3,15 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Modal, TextI
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TaskCard } from '../components/TaskCard';
 import { useSQLiteContext } from 'expo-sqlite';
-import { getAllTasks, getUpcomingTasks, updateTaskStatus } from '../services/Database'; // Adjusted imports based on usage
+import { getAllTasks, getUpcomingTasks, updateTaskStatus, deleteTask } from '../services/Database'; 
 import { useIsFocused } from '@react-navigation/native';
 import { getScheduleRecommendation } from '../services/AiServices';
-import { Bell, BellOff, Sparkles, X } from 'lucide-react-native'; // Added BellOff
+import { Bell, BellOff, Sparkles, X } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import EditScreen from './EditScreen';
 import { useTheme } from '../context/ThemeContext';
+import CustomAlert from '../components/CustomAlert';
 
-// ... (Keep Utility Functions: getCurrentDate, getFormattedDate, etc. unchanged)
 const getCurrentDate = () => {
   const date = new Date();
   const year = date.getFullYear();
@@ -42,7 +42,7 @@ const convertTo24HourFormat = (time12h) => {
 };
 
 const HomeScreen = ({ user, navigation }) => {
-  const { colors, isNotificationsEnabled, toggleNotifications } = useTheme(); // Consuming global state
+  const { colors, isNotificationsEnabled, toggleNotifications } = useTheme();
   const userName = user.name;
   const initial = userName.split(' ').map(n => n[0]).join('');
   const db = useSQLiteContext();
@@ -63,20 +63,35 @@ const HomeScreen = ({ user, navigation }) => {
   const [aiResult, setAiResult] = useState(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
 
+  // --- Alert Config ---
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+    buttons: []
+  });
+
+  const showAlert = (title, message, type = 'info', buttons = []) => {
+    setAlertConfig({ visible: true, title, message, type, buttons });
+  };
+
+  const closeAlert = () => {
+    setAlertConfig(prev => ({ ...prev, visible: false }));
+  };
+
   // --- Toast Notification State ---
   const [toastMessage, setToastMessage] = useState(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const showToast = (message) => {
       setToastMessage(message);
-      // Fade In
       Animated.timing(fadeAnim, {
           toValue: 1,
           duration: 300,
           useNativeDriver: true,
       }).start();
 
-      // Wait and Fade Out
       setTimeout(() => {
           Animated.timing(fadeAnim, {
               toValue: 0,
@@ -140,6 +155,35 @@ const HomeScreen = ({ user, navigation }) => {
     } catch (error) {
       console.error("Failed to update task status:", error);
     }
+  };
+
+  const executeDeleteTask = async (taskId) => {
+    try {
+        await deleteTask(db, taskId);
+        fetchTasks();
+        showToast("Task deleted successfully");
+    } catch (error) {
+        console.error("Failed to delete task:", error);
+        showAlert('Error', 'Could not delete the task.', 'error');
+    }
+  };
+
+  const handleDelete = (taskId) => {
+    showAlert(
+        'Delete Task',
+        'Are you sure you want to delete this task? This action cannot be undone.',
+        'info',
+        [
+            { text: 'Cancel', style: 'cancel', onPress: closeAlert },
+            { 
+                text: 'Delete', 
+                onPress: () => {
+                    closeAlert();
+                    executeDeleteTask(taskId);
+                } 
+            }
+        ]
+    );
   };
 
   const handleEdit = (task) => {
@@ -242,7 +286,6 @@ const HomeScreen = ({ user, navigation }) => {
           </View>
         </View>
 
-        {/* ... (Keep Report Card, List Header, Filter Tabs, Navigation Tabs unchanged) ... */}
         {/* Today's Report Card */}
         <View style={[styles.reportCard, { backgroundColor: colors.card }]}>
           <View style={styles.reportHeader}>
@@ -320,7 +363,7 @@ const HomeScreen = ({ user, navigation }) => {
           renderItem={({ item }) => {
             const time24 = convertTo24HourFormat(item.time);
             const deadline = `${item.date}T${time24}:00`;
-            return <TaskCard {...item} deadline={deadline} onDone={handleDone} onEdit={handleEdit} />;
+            return <TaskCard {...item} deadline={deadline} onDone={handleDone} onEdit={handleEdit} onDelete={handleDelete} />;
           }}
           keyExtractor={item => item.id.toString()}
           contentContainerStyle={styles.taskList}
@@ -422,11 +465,20 @@ const HomeScreen = ({ user, navigation }) => {
           </Animated.View>
       )}
 
+      {/* Custom Alert */}
+      <CustomAlert 
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        buttons={alertConfig.buttons}
+        onClose={closeAlert}
+      />
+
     </SafeAreaView>
   );
 };
 
-// --- Styles ---
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -479,7 +531,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    // shadow props managed conditionally inline or keep default
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.5,
     shadowRadius: 5,

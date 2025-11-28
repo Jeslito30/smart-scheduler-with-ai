@@ -3,11 +3,12 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TaskCard } from '../components/TaskCard';
 import { useSQLiteContext } from 'expo-sqlite';
-import { getRepeatingTasksInDateRange, updateTaskStatus } from '../services/Database';
+import { getRepeatingTasksInDateRange, updateTaskStatus, deleteTask } from '../services/Database';
 import { useIsFocused } from '@react-navigation/native';
 import EditScreen from './EditScreen';
 import { Plus, CalendarCheck, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
+import CustomAlert from '../components/CustomAlert';
 
 // --- Utility Function to get Current Day Name (e.g., MON, TUE) ---
 const getCurrentDayName = (date) => {
@@ -48,6 +49,23 @@ const PlannerScreen = ({ navigation, user }) => {
     const isFocused = useIsFocused();
     const [isEditModalVisible, setIsEditModalVisible] = useState(false);
     const [selectedTask, setSelectedTask] = useState(null);
+
+    // --- Alert Config ---
+    const [alertConfig, setAlertConfig] = useState({
+      visible: false,
+      title: '',
+      message: '',
+      type: 'info',
+      buttons: []
+    });
+
+    const showAlert = (title, message, type = 'info', buttons = []) => {
+      setAlertConfig({ visible: true, title, message, type, buttons });
+    };
+
+    const closeAlert = () => {
+      setAlertConfig(prev => ({ ...prev, visible: false }));
+    };
 
     const fetchTasksAndSchedules = useCallback(async () => {
         if (user?.id) {
@@ -100,6 +118,36 @@ const PlannerScreen = ({ navigation, user }) => {
         } catch (error) {
           console.error("Failed to update task status in PlannerScreen:", error);
         }
+    };
+
+    const executeDeleteTask = async (taskId) => {
+        try {
+            // Handle repeating task IDs which are like "12-2023-10-25"
+            const originalTaskId = typeof taskId === 'string' ? parseInt(taskId.split('-')[0], 10) : taskId;
+            await deleteTask(db, originalTaskId);
+            fetchTasksAndSchedules();
+        } catch (error) {
+            console.error("Failed to delete task:", error);
+            showAlert('Error', 'Could not delete the task.', 'error');
+        }
+    };
+
+    const handleDelete = (taskId) => {
+        showAlert(
+            'Delete Task',
+            'Are you sure you want to delete this task? This action cannot be undone.',
+            'info',
+            [
+                { text: 'Cancel', style: 'cancel', onPress: closeAlert },
+                { 
+                    text: 'Delete', 
+                    onPress: () => {
+                        closeAlert();
+                        executeDeleteTask(taskId);
+                    } 
+                }
+            ]
+        );
     };
     
     const goToPreviousDay = () => {
@@ -185,7 +233,7 @@ const PlannerScreen = ({ navigation, user }) => {
                         schedules.map(task => {
                             const time24 = convertTo24HourFormat(task.time);
                             const deadline = `${task.date}T${time24}:00`;
-                            return <TaskCard key={task.id.toString()} {...task} deadline={deadline} onDone={handleDone} onEdit={handleEdit} />;
+                            return <TaskCard key={task.id.toString()} {...task} deadline={deadline} onDone={handleDone} onEdit={handleEdit} onDelete={handleDelete} />;
                         })
                     ) : (
                         <View style={styles.emptyTasks}>
@@ -197,7 +245,7 @@ const PlannerScreen = ({ navigation, user }) => {
                         tasks.map(task => {
                             const time24 = convertTo24HourFormat(task.time);
                             const deadline = `${task.date}T${time24}:00`;
-                            return <TaskCard key={task.id.toString()} {...task} deadline={deadline} onDone={handleDone} onEdit={handleEdit} />;
+                            return <TaskCard key={task.id.toString()} {...task} deadline={deadline} onDone={handleDone} onEdit={handleEdit} onDelete={handleDelete} />;
                         })
                     ) : (
                         <View style={styles.emptyTasks}>
@@ -225,6 +273,15 @@ const PlannerScreen = ({ navigation, user }) => {
                 />
                 )}
             </Modal>
+
+            <CustomAlert 
+                visible={alertConfig.visible}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                type={alertConfig.type}
+                buttons={alertConfig.buttons}
+                onClose={closeAlert}
+            />
 
         </SafeAreaView>
     );
